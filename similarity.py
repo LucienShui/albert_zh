@@ -4,11 +4,11 @@
 
 """
 
-
 import tensorflow as tf
+
 import args
-import tokenization
 import modeling
+import tokenization
 from run_classifier import InputFeatures, InputExample, DataProcessor, create_model, convert_examples_to_features
 
 
@@ -33,6 +33,8 @@ class SimProcessor(DataProcessor):
 """
 模型类，负责载入checkpoint初始化模型
 """
+
+
 class BertSim:
     def __init__(self, batch_size=args.batch_size):
         self.mode = None
@@ -43,12 +45,9 @@ class BertSim:
         self.processor = SimProcessor()
         tf.logging.set_verbosity(tf.logging.INFO)
 
-
-
-    #载入estimator,构造模型
+    # 载入estimator,构造模型
     def start_model(self):
         self.estimator = self.get_estimator()
-
 
     def model_fn_builder(self, bert_config, num_labels, init_checkpoint, learning_rate,
                          num_train_steps, num_warmup_steps,
@@ -123,9 +122,9 @@ class BertSim:
         return Estimator(model_fn=model_fn, config=RunConfig(session_config=config), model_dir=args.output_dir,
                          params={'batch_size': self.batch_size})
 
-    def predict_sentences(self,sentences):
-        results= self.estimator.predict(input_fn=input_fn_builder(self,sentences), yield_single_examples=False)
-        #打印预测结果
+    def predict_sentences(self, sentences):
+        results = self.estimator.predict(input_fn=input_fn_builder(self, sentences), yield_single_examples=False)
+        # 打印预测结果
         for i in results:
             print(i)
 
@@ -236,9 +235,7 @@ class BertSim:
         return feature
 
 
-
-
-def input_fn_builder(bertSim,sentences):
+def input_fn_builder(bertSim, sentences):
     def predict_input_fn():
         return (tf.data.Dataset.from_generator(
             generate_from_input,

@@ -21,9 +21,11 @@ from __future__ import print_function
 import collections
 import random
 import re
-import tokenization
-import tensorflow as tf
+
 import jieba
+import tensorflow as tf
+
+import tokenization
 
 flags = tf.flags
 
@@ -195,7 +197,8 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
     for input_file in input_files:
         with tf.gfile.GFile(input_file, "r") as reader:
             while True:
-                line = tokenization.convert_to_unicode(reader.readline().replace("<eop>",""))# .replace("”","")) # 将<eop>、”替换掉。
+                line = tokenization.convert_to_unicode(
+                    reader.readline().replace("<eop>", ""))  # .replace("”","")) # 将<eop>、”替换掉。
                 if not line:
                     break
                 line = line.strip()
@@ -237,17 +240,17 @@ def _is_chinese_char(cp):
     # space-separated words, so they are not treated specially and handled
     # like the all of the other languages.
     if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
-        (cp >= 0x3400 and cp <= 0x4DBF) or  #
-        (cp >= 0x20000 and cp <= 0x2A6DF) or  #
-        (cp >= 0x2A700 and cp <= 0x2B73F) or  #
-        (cp >= 0x2B740 and cp <= 0x2B81F) or  #
-        (cp >= 0x2B820 and cp <= 0x2CEAF) or
-        (cp >= 0xF900 and cp <= 0xFAFF) or  #
+            (cp >= 0x3400 and cp <= 0x4DBF) or  #
+            (cp >= 0x20000 and cp <= 0x2A6DF) or  #
+            (cp >= 0x2A700 and cp <= 0x2B73F) or  #
+            (cp >= 0x2B740 and cp <= 0x2B81F) or  #
+            (cp >= 0x2B820 and cp <= 0x2CEAF) or
+            (cp >= 0xF900 and cp <= 0xFAFF) or  #
             (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
         return True
 
 
-def get_new_segment(segment): #  新增的方法 ####
+def get_new_segment(segment):  # 新增的方法 ####
     """
     输入一句话，返回一句经过处理的话: 为了支持中文全称mask，将被分开的词，将上特殊标记("#")，使得后续处理模块，能够知道哪些字是属于同一个词的。
     :param segment: 一句话
@@ -258,19 +261,19 @@ def get_new_segment(segment): #  新增的方法 ####
     new_segment = []
     i = 0
     while i < len(segment):
-        if len(re.findall('[\u4E00-\u9FA5]', segment[i]))==0: # 不是中文的，原文加进去。
+        if len(re.findall('[\u4E00-\u9FA5]', segment[i])) == 0:  # 不是中文的，原文加进去。
             new_segment.append(segment[i])
             i += 1
             continue
 
         has_add = False
-        for length in range(3,0,-1):
-            if i+length>len(segment):
+        for length in range(3, 0, -1):
+            if i + length > len(segment):
                 continue
-            if ''.join(segment[i:i+length]) in seq_cws_dict:
+            if ''.join(segment[i:i + length]) in seq_cws_dict:
                 new_segment.append(segment[i])
                 for l in range(1, length):
-                    new_segment.append('##' + segment[i+l])
+                    new_segment.append('##' + segment[i + l])
                 i += length
                 has_add = True
                 break
@@ -279,30 +282,31 @@ def get_new_segment(segment): #  新增的方法 ####
             i += 1
     return new_segment
 
-def get_raw_instance(document,max_sequence_length): # 新增的方法 TODO need check again to ensure full use of data
+
+def get_raw_instance(document, max_sequence_length):  # 新增的方法 TODO need check again to ensure full use of data
     """
     获取初步的训练实例，将整段按照max_sequence_length切分成多个部分,并以多个处理好的实例的形式返回。
     :param document: 一整段
     :param max_sequence_length:
     :return: a list. each element is a sequence of text
     """
-    max_sequence_length_allowed=max_sequence_length-2
-    document = [seq for seq in document if len(seq)<max_sequence_length_allowed]
+    max_sequence_length_allowed = max_sequence_length - 2
+    document = [seq for seq in document if len(seq) < max_sequence_length_allowed]
     sizes = [len(seq) for seq in document]
 
     result_list = []
-    curr_seq = [] # 当前处理的序列
+    curr_seq = []  # 当前处理的序列
     sz_idx = 0
     while sz_idx < len(sizes):
         # 当前句子加上新的句子，如果长度小于最大限制，则合并当前句子和新句子；否则即超过了最大限制，那么做为一个新的序列加到目标列表中
-        if len(curr_seq) + sizes[sz_idx] <= max_sequence_length_allowed: # or len(curr_seq)==0:
+        if len(curr_seq) + sizes[sz_idx] <= max_sequence_length_allowed:  # or len(curr_seq)==0:
             curr_seq += document[sz_idx]
             sz_idx += 1
         else:
             result_list.append(curr_seq)
             curr_seq = []
     # 对最后一个序列进行处理，如果太短的话，丢弃掉。
-    if len(curr_seq)>max_sequence_length_allowed/2: # /2
+    if len(curr_seq) > max_sequence_length_allowed / 2:  # /2
         result_list.append(curr_seq)
 
     # # 计算总共可以得到多少份
@@ -316,10 +320,11 @@ def get_raw_instance(document,max_sequence_length): # 新增的方法 TODO need 
     #     result_list.append(big_list[index:end_index])
     return result_list
 
-def create_instances_from_document( # 新增的方法
-    # 目标按照RoBERTa的思路，使用DOC-SENTENCES，并会去掉NSP任务: 从一个文档中连续的获得文本，直到达到最大长度。如果是从下一个文档中获得，那么加上一个分隔符
-    #  document即一整段话，包含多个句子。每个句子叫做segment.
-    # 给定一个document即一整段话，生成一些instance.
+
+def create_instances_from_document(  # 新增的方法
+        # 目标按照RoBERTa的思路，使用DOC-SENTENCES，并会去掉NSP任务: 从一个文档中连续的获得文本，直到达到最大长度。如果是从下一个文档中获得，那么加上一个分隔符
+        #  document即一整段话，包含多个句子。每个句子叫做segment.
+        # 给定一个document即一整段话，生成一些instance.
         all_documents, document_index, max_seq_length, short_seq_prob,
         masked_lm_prob, max_predictions_per_seq, vocab_words, rng):
     """Creates `TrainingInstance`s for a single document."""
@@ -336,17 +341,17 @@ def create_instances_from_document( # 新增的方法
     # The `target_seq_length` is just a rough target however, whereas
     # `max_seq_length` is a hard limit.
 
-    #target_seq_length = max_num_tokens
-    #if rng.random() < short_seq_prob:
+    # target_seq_length = max_num_tokens
+    # if rng.random() < short_seq_prob:
     #    target_seq_length = rng.randint(2, max_num_tokens)
 
     instances = []
-    raw_text_list_list=get_raw_instance(document, max_seq_length) # document即一整段话，包含多个句子。每个句子叫做segment.
+    raw_text_list_list = get_raw_instance(document, max_seq_length)  # document即一整段话，包含多个句子。每个句子叫做segment.
     for j, raw_text_list in enumerate(raw_text_list_list):
         ####################################################################################################################
-        raw_text_list = get_new_segment(raw_text_list) # 结合分词的中文的whole mask设置即在需要的地方加上“##”
+        raw_text_list = get_new_segment(raw_text_list)  # 结合分词的中文的whole mask设置即在需要的地方加上“##”
         # 1、设置token, segment_ids
-        is_random_next=True # this will not be used, so it's value doesn't matter
+        is_random_next = True  # this will not be used, so it's value doesn't matter
         tokens = []
         segment_ids = []
         tokens.append("[CLS]")
@@ -370,7 +375,6 @@ def create_instances_from_document( # 新增的方法
         instances.append(instance)
 
     return instances
-
 
 
 def create_instances_from_document_original(
@@ -402,16 +406,17 @@ def create_instances_from_document_original(
     current_chunk = []
     current_length = 0
     i = 0
-    print("document_index:",document_index,"document:",type(document)," ;document:",document) # document即一整段话，包含多个句子。每个句子叫做segment.
+    print("document_index:", document_index, "document:", type(document), " ;document:",
+          document)  # document即一整段话，包含多个句子。每个句子叫做segment.
     while i < len(document):
-        segment = document[i] # 取到一个部分（可能是一段话）
-        print("i:",i," ;segment:",segment)
+        segment = document[i]  # 取到一个部分（可能是一段话）
+        print("i:", i, " ;segment:", segment)
         ####################################################################################################################
-        segment = get_new_segment(segment) # 结合分词的中文的whole mask设置即在需要的地方加上“##”
+        segment = get_new_segment(segment)  # 结合分词的中文的whole mask设置即在需要的地方加上“##”
         ###################################################################################################################
         current_chunk.append(segment)
         current_length += len(segment)
-        print("#####condition:",i == len(document) - 1 or current_length >= target_seq_length)
+        print("#####condition:", i == len(document) - 1 or current_length >= target_seq_length)
         if i == len(document) - 1 or current_length >= target_seq_length:
             if current_chunk:
                 # `a_end` is how many segments from `current_chunk` go into the `A`
@@ -479,7 +484,7 @@ def create_instances_from_document_original(
 
                 (tokens, masked_lm_positions,
                  masked_lm_labels) = create_masked_lm_predictions(
-                     tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng)
+                    tokens, masked_lm_prob, max_predictions_per_seq, vocab_words, rng)
                 instance = TrainingInstance(
                     tokens=tokens,
                     segment_ids=segment_ids,
@@ -523,7 +528,7 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
 
     rng.shuffle(cand_indexes)
 
-    output_tokens = [t[2:] if len(re.findall('##[\u4E00-\u9FA5]', t))>0 else t for t in tokens] # 去掉"##"
+    output_tokens = [t[2:] if len(re.findall('##[\u4E00-\u9FA5]', t)) > 0 else t for t in tokens]  # 去掉"##"
 
     num_to_predict = min(max_predictions_per_seq,
                          max(1, int(round(len(tokens) * masked_lm_prob))))
@@ -554,7 +559,8 @@ def create_masked_lm_predictions(tokens, masked_lm_prob,
             else:
                 # 10% of the time, keep original
                 if rng.random() < 0.5:
-                    masked_token = tokens[index][2:] if len(re.findall('##[\u4E00-\u9FA5]', tokens[index]))>0 else tokens[index] # 去掉"##"
+                    masked_token = tokens[index][2:] if len(re.findall('##[\u4E00-\u9FA5]', tokens[index])) > 0 else \
+                    tokens[index]  # 去掉"##"
                 # 10% of the time, replace with random word
                 else:
                     masked_token = vocab_words[rng.randint(0, len(vocab_words) - 1)]
